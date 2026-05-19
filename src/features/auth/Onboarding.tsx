@@ -206,7 +206,13 @@ const Onboarding: React.FC = () => {
                   
                   <div style={{ marginBottom: '1.5rem' }}>
                     <input 
-                      type="text" value={name} onChange={e => { setName(e.target.value); setError(''); }}
+                      type="text" value={name} onChange={e => { 
+                        const val = e.target.value;
+                        const filtered = val.replace(/[^a-zA-Z\s]/g, '');
+                        if (val !== filtered) e.target.value = filtered;
+                        setName(filtered); 
+                        setError(''); 
+                      }}
                       placeholder="Your Name"
                       maxLength={50}
                       style={{

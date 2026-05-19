@@ -127,7 +127,11 @@ const AddBudgetSheet: React.FC<AddBudgetSheetProps> = ({ isOpen, onClose, profil
               maxLength={15}
               onKeyDown={(e) => { if (['-', '+', 'e', 'E', ','].includes(e.key)) e.preventDefault(); }}
               onChange={(e) => {
-                const filtered = e.target.value.replace(/[^0-9.]/g, '');
+                const val = e.target.value;
+                const filtered = val.replace(/[^0-9.]/g, '');
+                if (val !== filtered) {
+                  e.target.value = filtered;
+                }
                 const parts = filtered.split('.');
                 setLimitStr(parts.length > 2 ? parts[0] + '.' + parts.slice(1).join('') : filtered);
               }}

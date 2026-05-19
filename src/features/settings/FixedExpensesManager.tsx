@@ -119,9 +119,16 @@ const FixedExpensesManager: React.FC<FixedExpensesManagerProps> = ({ isOpen, onC
                 <p style={{ color: 'var(--vs-muted)', fontSize: 'var(--text-micro)', fontWeight: 700, textTransform: 'uppercase', marginBottom: '0.5rem' }}>{label}</p>
                 <input type={type} placeholder={placeholder} value={value} 
                   onChange={(e) => {
-                    if (type === 'number' && e.target.value.length > 15) return;
-                    if (type === 'text' && e.target.value.length > 100) return;
-                    onChange(e.target.value);
+                    const val = e.target.value;
+                    if (type === 'number') {
+                      const filtered = val.replace(/[^0-9.]/g, '');
+                      if (val !== filtered) e.target.value = filtered;
+                      if (filtered.length > 15) return;
+                      onChange(filtered);
+                    } else {
+                      if (val.length > 100) return;
+                      onChange(val);
+                    }
                   }}
                   maxLength={type === 'text' ? 100 : undefined}
                   style={{ background: 'transparent', border: 'none', outline: 'none', color: 'var(--vs-text)', fontSize: '1.1rem', width: '100%', fontFamily: 'inherit' }} />

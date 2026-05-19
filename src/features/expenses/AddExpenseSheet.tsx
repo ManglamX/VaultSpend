@@ -154,7 +154,11 @@ const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({ isOpen, onClose, prof
               maxLength={15}
               onKeyDown={(e) => { if (['-', '+', 'e', 'E', ','].includes(e.key)) e.preventDefault(); }}
               onChange={(e) => {
-                const filtered = e.target.value.replace(/[^0-9.]/g, '');
+                const val = e.target.value;
+                const filtered = val.replace(/[^0-9.]/g, '');
+                if (val !== filtered) {
+                  e.target.value = filtered; // Force DOM update to clear invalid chars
+                }
                 const parts = filtered.split('.');
                 setAmount(parts.length > 2 ? parts[0] + '.' + parts.slice(1).join('') : filtered);
               }}
