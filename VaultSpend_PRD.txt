@@ -1,0 +1,655 @@
+
+PRODUCT REQUIREMENTS DOCUMENT
+
+VaultSpend
+Privacy-First Personal Expense Tracker
+
+
+
+Android (PWA + Capacitor)  •  Offline-First  •  AES-256 Encrypted
+
+Version
+1.0 – Initial Release
+Date
+April 2026
+Status
+APPROVED FOR DEVELOPMENT
+Platform
+Android 8+ (PWA via Capacitor)
+Prepared by
+Product & Engineering Team
+
+CONFIDENTIAL
+
+
+1. Executive Summary
+
+
+VaultSpend is a fully client-side, privacy-first personal expense tracker built as a Progressive Web App (PWA) and packaged as a native Android APK via Capacitor. It gives individuals complete control over their financial data by storing all records encrypted on the device — no server, no cloud, no data leakage.
+The core value proposition is the combination of bank-grade AES-256-GCM encryption, a fast mobile-native UX, rich analytics, and powerful export capabilities — all without requiring user accounts, subscriptions, or internet connectivity.
+
+Problem Statement
+Mainstream expense trackers (Mint, YNAB, Wallet) require cloud accounts, charge subscriptions, and transmit sensitive spending data to third-party servers. Privacy-conscious users, users in regions with data-sovereignty concerns, or users who simply want zero dependency on external services have no robust, feature-rich alternative.
+
+Solution Overview
+100% offline operation — works without internet access
+AES-256-GCM encryption via the native Web Crypto API — all data encrypted at rest
+PIN/password lock with configurable auto-lock timeout
+Multi-profile support (personal, family, business)
+Comprehensive analytics with Chart.js visualizations
+Excel/CSV export with optional encrypted backup
+Tag-based and category-based expense classification
+Budget alerts with smart spending insights
+
+
+2. Goals & Success Metrics
+
+
+
+2.1 Product Goals
+G1 — Privacy: Zero external data transmission; all processing client-side
+G2 — Security: AES-256-GCM encryption + PIN lock to protect financial data
+G3 — Speed: Add an expense in under 3 seconds (3-tap flow)
+G4 — Insight: Deliver actionable spending analytics at a glance
+G5 — Resilience: Full offline operation + encrypted file-based backup/restore
+G6 — Portability: Export to Excel/CSV for use in other tools
+
+
+2.2 Success Metrics (KPIs)
+Metric
+Target
+Measurement Method
+Time to add expense
+< 3 seconds (3 taps)
+In-app UX stopwatch test
+App cold start (cached)
+< 800 ms
+Lighthouse Performance score
+Encryption/decryption overhead
+< 20 ms per record
+Web Crypto API benchmark
+Crash-free sessions
+> 99.5%
+Capacitor crash reporter
+Offline functionality coverage
+100% of features
+Manual test suite
+Data integrity after export/import
+100% match
+Automated regression test
+User retention (30-day)
+> 60%
+Anonymous local analytics
+
+
+3. Technology Stack
+
+
+Every technology choice is driven by four constraints: offline-first, client-side-only, zero server dependency, and maximum security.
+
+
+3.1 Core Stack Overview
+Layer
+Technology
+Justification
+UI Framework
+React 18 + TypeScript 5
+Component model, hooks, strict typing; huge ecosystem
+Build Tool
+Vite 5
+Sub-second HMR, native ESM, tree-shaking, PWA plugin support
+Native App Bridge
+Capacitor 6 (Ionic)
+Converts PWA → Android APK; access to device APIs; no React Native overhead
+UI Component Library
+Ionic React + Tailwind CSS v3
+Mobile-native UI patterns; dark-mode utilities; zero config purge
+State Management
+Zustand 4
+Minimal boilerplate; no providers; selector-based re-renders
+Client-Side DB
+Dexie.js 4 (IndexedDB wrapper)
+Promise-based; reactive live queries; 29 KB gzipped; used by WhatsApp Web
+Encryption
+Web Crypto API (AES-256-GCM) + PBKDF2
+Native browser implementation; hardware-accelerated; no external lib needed
+Charts
+Chart.js 4 + react-chartjs-2
+Lightweight; tree-shakeable; excellent mobile touch support
+Excel Export
+SheetJS (xlsx) CE
+Client-side XLSX generation; no server; free Community Edition
+Routing
+React Router v6
+Declarative; nested routes; lazy loading
+PWA
+vite-plugin-pwa (Workbox)
+Service worker generation; precaching; offline fallback
+Forms
+React Hook Form + Zod
+Performant; schema validation; TypeScript inference
+Date Handling
+date-fns v3
+Tree-shakeable; no prototype pollution; timezone safe
+Icons
+Lucide React
+Consistent; tree-shakeable SVG; MIT license
+Testing
+Vitest + React Testing Library + Playwright
+Unit, integration, and E2E; Vite-native
+Linting / Formatting
+ESLint 9 + Prettier + Husky
+Pre-commit hooks; consistent code style
+
+
+3.2 Security Stack Detail
+Encryption Architecture
+All encryption uses the browser-native Web Crypto API — no third-party crypto library is introduced, eliminating supply-chain risks. The encryption model follows a Password-Based Key Derivation approach:
+User password/PIN → PBKDF2 (SHA-256, 310,000 iterations, 16-byte salt) → 256-bit master key
+Master key wrapped in AES-KW and stored in IndexedDB (non-exportable CryptoKey)
+Each record encrypted with AES-256-GCM using a unique 96-bit IV per write
+Authentication tag (128-bit) validates data integrity on every read
+Zero plaintext data stored anywhere in IndexedDB or localStorage
+
+Key Management Flow
+Step
+Implementation Detail
+App First Launch
+Generate random 16-byte salt; prompt PIN setup; derive key via PBKDF2; store encrypted DB schema
+App Unlock
+User enters PIN; re-derive key from stored salt; attempt to decrypt a known test vector; fail = wrong PIN
+Data Write
+Encrypt payload with AES-GCM (unique IV); store ciphertext + IV + auth tag as Uint8Array in IndexedDB
+Data Read
+Fetch ciphertext; decrypt with AES-GCM using stored IV; verify auth tag; return plaintext
+PIN Change
+Decrypt all records; re-encrypt with new derived key; atomic transaction (rollback on failure)
+Encrypted Export
+Export entire DB as JSON; encrypt with export passphrase; save as .vaultspend.enc file
+Auto-Lock
+sessionStorage cleared on inactivity timeout; key material wiped from memory
+
+
+3.3 Storage Architecture
+IndexedDB Schema (Dexie.js)
+All tables store AES-GCM encrypted blobs. Schema versioning via Dexie migrations.
+Table
+Primary Index
+Fields (Encrypted Blob)
+profiles
+++id, name
+name, currency, createdAt, avatar
+expenses
+++id, date, categoryId, profileId
+amount, category, date, notes, tags, receiptRef, isRecurring
+fixed_expenses
+++id, profileId
+name, amount, dueDay, category, isActive, recurringRule
+income
+++id, date, profileId
+amount, source, date, notes, isRecurring
+budgets
+++id, categoryId, profileId
+categoryId, monthlyLimit, alertAt, period
+categories
+++id, profileId
+name, icon, color, isDefault
+settings
+key
+value (per-key encrypted)
+receipts
+++id, expenseId
+imageBlob (base64), mimeType, sizeKB
+app_meta
+key
+salt, encryptedTestVector, schemaVersion
+
+
+3.4 Project Structure
+Monorepo organized for separation of concerns. Capacitor wraps the Vite build output (dist/) as the Android WebView asset.
+vaultspend/
+├── android/                 ← Capacitor Android project (generated)
+├── public/                  ← Static assets, manifest.json, icons
+├── src/
+│   ├── components/          ← Shared UI components
+│   │   ├── charts/          ← Chart.js wrappers
+│   │   ├── forms/           ← RHF + Zod form components
+│   │   └── layout/          ← Shell, BottomNav, Header
+│   ├── crypto/              ← Web Crypto API utilities
+│   │   ├── encryption.ts    ← AES-GCM encrypt/decrypt
+│   │   ├── keyDerivation.ts ← PBKDF2 key derivation
+│   │   └── storage.ts       ← Encrypted Dexie wrapper
+│   ├── db/                  ← Dexie schema + migrations
+│   ├── features/
+│   │   ├── auth/            ← PIN lock, auto-lock, biometric
+│   │   ├── dashboard/       ← Home screen + widgets
+│   │   ├── expenses/        ← Daily expense CRUD + filters
+│   │   ├── fixed/           ← Monthly fixed expense CRUD
+│   │   ├── income/          ← Income tracking
+│   │   ├── budgets/         ← Budget setting + alerts
+│   │   ├── analytics/       ← Charts + insights
+│   │   ├── export/          ← XLSX/CSV/encrypted export
+│   │   ├── profiles/        ← Multi-profile management
+│   │   └── settings/        ← App settings + theme
+│   ├── hooks/               ← Custom React hooks
+│   ├── store/               ← Zustand stores
+│   ├── types/               ← TypeScript type definitions
+│   └── utils/               ← Date, currency, formatter helpers
+├── capacitor.config.ts
+├── vite.config.ts           ← Includes vite-plugin-pwa
+└── vitest.config.ts
+
+
+4. Feature Specifications
+
+
+Features are organized by priority tier: P0 (must-have for v1.0), P1 (high value, target v1.1), P2 (planned, v1.2+).
+
+
+4.1 Authentication & Security (P0)
+4.1.1 PIN / Password Lock
+Setup: 4–6 digit PIN or alphanumeric password. Bcrypt-hashed locally (PBKDF2). No recovery — loss of PIN = encrypted data inaccessible (by design).
+Biometric (Android): Capacitor Biometric Auth plugin (@capacitor-community/biometric-auth). Fingerprint/face unlock derives key from secure Keystore after biometric success.
+Wrong PIN: Exponential backoff — 3 attempts free, then 30s / 5 min / 30 min delays. Counter stored in IndexedDB.
+Auto-Lock: Configurable timeout: 1 / 5 / 10 / 30 min / Never. Triggered by app background (Capacitor appStateChange event). In-memory key wiped on lock.
+
+4.1.2 Encryption Details
+Algorithm: AES-256-GCM (authenticated encryption; integrity guaranteed by 128-bit auth tag).
+Key Derivation: PBKDF2 with SHA-256, 310,000 iterations (NIST SP 800-132 recommended floor as of 2024), 16-byte random salt.
+IV: 96-bit random IV per encryption operation; stored alongside ciphertext.
+What is encrypted: All user-generated data. Only app_meta (salt + version) is stored in plaintext.
+XSS Protection: DOMPurify for all user text input rendered as HTML. React's default JSX escaping prevents injection in components.
+
+
+4.2 Dashboard (P0)
+Monthly Summary Card: Total income, total spent, net savings, savings rate % — for current month.
+Quick-Add FAB: Floating action button opens bottom sheet. 3-tap flow: amount → category → confirm. Optional notes + date.
+Recent Transactions: Last 10 expenses with category icon, amount, date. Tap to edit.
+Budget Progress Bars: Per-category spent vs. limit. Color: green < 80%, amber 80–100%, red > 100%.
+Monthly Trend Sparkline: 7-day rolling line chart above fold.
+Top Spending Category Widget: Current month's #1 category with % of total.
+
+
+4.3 Expense Management (P0)
+4.3.1 Daily Expense Entry
+Required Fields: Amount (number), Category (from list), Date (defaults to today).
+Optional Fields: Notes (max 500 chars), Tags (multi-select or free-type), Receipt Image (camera or gallery via Capacitor Camera plugin).
+Recurring Flag: Mark as recurring with frequency: Daily / Weekly / Monthly / Custom. Auto-creates future entries via background job.
+4.3.2 Fixed Monthly Expenses
+Fields: Name, Amount, Due Day (1–28), Category, Active toggle, Notes.
+Auto-Add: On first app open of a new month, prompt to add all active fixed expenses to the expense ledger.
+Edit / Delete: Swipe-to-delete (Ionic IonItemSliding) or long-press menu.
+4.3.3 Search & Filter
+Search: Full-text over name + notes fields using Dexie's built-in collection filtering.
+Filters: Date range (presets: today / this week / this month / custom), Category (multi-select), Amount range, Tags, Recurring only toggle.
+Sort: Date (asc/desc), Amount (asc/desc), Category (A–Z).
+
+
+4.4 Income Tracking (P0)
+Add income entries: source, amount, date, notes, recurring toggle.
+Multiple income sources per month (salary, freelance, rental, etc.).
+Net savings = Total Income − Total Expenses displayed prominently on dashboard.
+Monthly income vs. expense comparison chart (grouped bar).
+
+
+4.5 Budget Management (P1)
+Set monthly spending limits per category.
+Visual progress bars on dashboard and category view.
+Push notification (Capacitor Local Notifications) when 80% and 100% of budget reached.
+50/30/20 rule assistant: auto-suggest budget splits based on income.
+Rollover budgets: carry unspent amount to next month (configurable).
+
+
+4.6 Analytics & Visualization (P0 / P1)
+Chart
+Priority
+Description
+Category Pie / Donut
+P0
+Current month spending distribution by category
+Monthly Trend Line
+P0
+Last 6 months total spend — identify trends
+Income vs Expenses Bar
+P0
+Grouped bar: monthly income vs. total expenses
+Planned vs Actual
+P1
+Budget limit vs. actual spend per category
+Savings Rate Gauge
+P1
+Dial chart: savings % of income
+Daily Spend Heatmap
+P1
+GitHub-style calendar: spending intensity by day
+Top 5 Categories Trend
+P2
+Stacked area chart: category evolution over 12 months
+
+
+4.7 Export & Backup (P0)
+4.7.1 Excel / CSV Export
+Format: SheetJS generates .xlsx with multiple sheets: Transactions, Fixed Expenses, Income, Category Summary, Monthly Summary.
+Filters: Export all time, selected month, or date range.
+Delivery: Capacitor Filesystem plugin writes to device Downloads folder. Share sheet available.
+4.7.2 Encrypted Backup
+Format: .vaultspend.enc — full DB export as JSON, encrypted with AES-GCM using a user-supplied backup passphrase.
+Restore: Import .vaultspend.enc → enter passphrase → decrypt → validate schema → write to IndexedDB.
+Plain JSON Export: Optional unencrypted JSON for migration to other tools. Gated behind additional confirmation dialog.
+
+
+4.8 Multi-Profile Support (P1)
+Up to 5 profiles (e.g., Personal, Family, Business).
+Each profile has independent expenses, budgets, income, and settings.
+Profile switcher in sidebar; active profile shown in header.
+All profiles share the same encryption key (single device PIN).
+
+
+4.9 Smart Insights (P1)
+"You spent 23% more on Food this month vs. last month."
+Biggest single expense of the week.
+Days until next fixed bill (with amount).
+Projected month-end total based on spending velocity.
+Unusual spike detection: category spend > 2× monthly average triggers alert card.
+
+
+4.10 Settings & Customization (P0)
+Theme: Light / Dark / System — persisted in IndexedDB settings table.
+Currency: ISO 4217 selection (₹ INR default; $, €, £ and 150+ others). Format: symbol position, decimal separator.
+Categories: Add, edit, reorder, delete categories with custom color + icon.
+Auto-Lock Timeout: 1 / 5 / 10 / 30 min / Never.
+Recurring Auto-Add: Toggle for monthly fixed expense auto-add behavior.
+Data Wipe: Nuke all data — requires PIN re-entry and confirmation. Useful for device handover.
+
+
+5. User Experience & Navigation
+
+
+
+5.1 Navigation Structure
+Bottom navigation bar (Ionic IonTabBar) with 5 tabs: Dashboard, Expenses, Analytics, Budget, Settings. Floating Action Button (FAB) for quick expense add on every screen.
+
+
+5.2 Key User Flows
+Flow 1: App First Launch
+Step 1 → Step 2 → Step 3 → Step 4 → Step 5
+1. Welcome screen → Set PIN (4–6 digits)
+2. Set base currency + profile name
+3. Add first income (optional, skippable)
+4. Add first fixed expense (optional, skippable)
+5. Dashboard renders — onboarding complete
+
+Flow 2: Quick Expense Add (3-Tap Target)
+Tap 1. FAB → Bottom sheet opens with numpad
+Tap 2. Enter amount → Tap category chip
+Tap 3. Tap "Save" → Record saved encrypted → Toast confirmation
+Optional: swipe up on bottom sheet to expand and add notes / date / tags / receipt
+
+Flow 3: Month-End Review
+1. Dashboard shows monthly summary card with savings rate
+2. Tap Analytics tab → View pie chart + trend line
+3. Tap "Export" → Choose XLSX or Encrypted Backup
+4. File saved to Downloads — share via any Android app
+
+
+5.3 Mobile-First Design Principles
+Touch targets: Minimum 48×48 dp per Material Design / WCAG 2.1 AA.
+Bottom-sheet pattern: All input forms as bottom sheets (not full-page navigations) to preserve context.
+Swipe gestures: Swipe-to-delete on list items; swipe-down to dismiss bottom sheet.
+Haptic feedback: Capacitor Haptics plugin on save, delete, and error events.
+Keyboard avoidance: Ionic IonContent with scrollAssist handles keyboard push-up.
+Empty states: Illustrated empty states (SVG) for first-run screens with CTA.
+
+
+6. Non-Functional Requirements
+
+
+
+6.1 Performance
+Requirement
+Specification
+App cold start (first load, cached PWA)
+< 1.5 seconds (Lighthouse FCP)
+App warm start (already installed)
+< 400 ms
+Expense save round-trip (encrypt + write)
+< 50 ms
+Dashboard render (500 records)
+< 200 ms
+XLSX export (1000 records)
+< 2 seconds
+Chart render (12 months data)
+< 300 ms
+IndexedDB query (unindexed full scan)
+< 100 ms up to 10,000 records
+
+
+6.2 Security
+No external HTTP calls — zero network egress for user data
+Content Security Policy: default-src 'self'; no inline scripts; no eval()
+All inputs sanitized via DOMPurify before storage
+OWASP Top 10 mobile compliance: M1 (improper credential usage), M2 (inadequate supply chain), M9 (insecure data storage) covered
+Encrypted backup files use unique salt per export (prevents rainbow table attacks on backup passphrase)
+Capacitor disables remote WebView debugging in production builds
+
+
+6.3 Reliability & Offline
+Service Worker (Workbox InjectManifest) precaches all app shell assets
+IndexedDB persisted storage requested via navigator.storage.persist() to prevent browser eviction
+All writes wrapped in Dexie transactions — atomic; no partial writes
+Graceful degradation: if IndexedDB unavailable (rare private mode edge case), show clear error
+
+
+6.4 Accessibility
+WCAG 2.1 AA compliance: contrast ratios ≥ 4.5:1 (normal text), ≥ 3:1 (large text)
+All interactive elements have aria-label attributes
+Screen reader support via semantic HTML + Ionic ARIA roles
+Font size respects Android system font scale setting
+
+
+7. Development Roadmap
+
+
+
+7.1 Phased Delivery Plan
+Phase
+Scope
+Duration
+Phase 0: Foundation
+Repo setup, Vite + React + Capacitor + Dexie scaffold, encryption module, PIN lock, DB schema
+1 week
+Phase 1: Core MVP
+Expense CRUD, Fixed Expenses, Income, Dashboard, Category management, basic export (CSV)
+3 weeks
+Phase 2: Analytics
+Chart.js integration — Pie, Line, Bar charts; Budget engine; Overspend alerts
+2 weeks
+Phase 3: Power UX
+Search/filter, Tags, Smart insights, Recurring automation, XLSX export, Encrypted backup
+2 weeks
+Phase 4: Polish
+Multi-profile, Dark mode, Receipt images, Biometric auth, PWA manifest + installability, Onboarding
+2 weeks
+Phase 5: QA & Release
+Vitest unit tests, Playwright E2E, performance profiling, APK signing, Play Store submission
+1 week
+
+
+7.2 Dependencies & Risks
+Risk: Web Crypto API PIN strength — Mitigate with PBKDF2 iteration count tuning. Benchmark on low-end Android devices (target: < 500 ms derivation time).
+Risk: IndexedDB storage quotas — Capacitor Android has higher quotas than mobile browsers (~unlimited); request persistent storage on first launch.
+Risk: SheetJS CE license — Community Edition is Apache 2.0 for non-commercial use; verify license for commercial distribution.
+Risk: Capacitor plugin compatibility — Pin all @capacitor/* packages to same major version; use @capacitor/core@6.x throughout.
+Risk: Receipt image storage size — Compress images client-side via canvas API before storing in IndexedDB. Max 200 KB per receipt.
+
+
+8. Full Dependency Manifest
+
+
+
+8.1 Production Dependencies
+Package
+Version
+Purpose
+react + react-dom
+^18.3
+Core UI framework
+typescript
+^5.5
+Type safety throughout
+@ionic/react
+^8.x
+Mobile UI components (IonPage, IonFab, etc.)
+@capacitor/core
+^6.x
+Native Android bridge
+@capacitor/android
+^6.x
+Android platform target
+@capacitor/camera
+^6.x
+Receipt image capture
+@capacitor/filesystem
+^6.x
+File export to device storage
+@capacitor/local-notifications
+^6.x
+Budget overspend alerts
+@capacitor/haptics
+^6.x
+Haptic feedback on interactions
+@capacitor-community/biometric-auth
+^5.x
+Fingerprint / face unlock
+dexie
+^4.x
+IndexedDB wrapper (offline DB)
+zustand
+^4.x
+Lightweight global state management
+react-router-dom
+^6.x
+SPA routing
+react-hook-form
+^7.x
+Performant form handling
+zod
+^3.x
+Schema validation + TypeScript inference
+chart.js + react-chartjs-2
+^4.x
+Data visualizations
+xlsx (SheetJS CE)
+^0.18
+XLSX/CSV generation client-side
+date-fns
+^3.x
+Date manipulation + formatting
+dompurify
+^3.x
+XSS input sanitization
+lucide-react
+^0.400
+SVG icon library
+tailwindcss
+^3.x
+Utility CSS framework
+clsx + tailwind-merge
+latest
+Conditional class merging
+
+
+8.2 Development Dependencies
+Package
+Version
+Purpose
+vite
+^5.x
+Build tool + dev server
+vite-plugin-pwa
+^0.20
+Service worker + PWA manifest generation
+vitest
+^2.x
+Unit + integration testing (Vite-native)
+@testing-library/react
+^16.x
+Component testing utilities
+playwright
+^1.x
+End-to-end browser testing
+eslint (v9 flat config)
+^9.x
+Static analysis
+prettier
+^3.x
+Code formatting
+husky + lint-staged
+latest
+Pre-commit hooks
+@types/react
+^18.x
+TypeScript React types
+fake-indexeddb
+^5.x
+IndexedDB mock for Vitest
+
+
+9. Open Questions & Decisions Required
+
+
+#
+Question
+Options
+Decision Needed By
+1
+Should receipt images be compressed to JPEG before storage or kept as-is?
+Canvas compress vs. raw blob
+Phase 1 kickoff
+2
+Maximum records before IndexedDB performance degrades — add pagination limit?
+500 / 1,000 / no limit
+Phase 1 kickoff
+3
+SheetJS CE for commercial distribution — confirm licensing with legal.
+CE (Apache 2.0) vs. Pro
+Before Phase 3
+4
+Should biometric auth require re-entry of PIN after 3 failed biometric attempts?
+Yes (more secure) / No (better UX)
+Phase 4 kickoff
+5
+iCloud/Google Drive sync as an optional v2 feature?
+Yes (Dexie Cloud) / No (local-only)
+v2 planning
+
+
+10. Glossary
+
+
+Term
+Definition
+AES-256-GCM
+Advanced Encryption Standard, 256-bit key, Galois/Counter Mode — authenticated encryption algorithm
+PBKDF2
+Password-Based Key Derivation Function 2 — derives cryptographic key from user password
+IV (Initialization Vector)
+Random 96-bit value used with AES-GCM; unique per encryption operation to prevent ciphertext reuse
+Web Crypto API
+Browser-native JavaScript API for cryptographic operations; hardware-accelerated where supported
+IndexedDB
+Browser-native NoSQL object store; supports large datasets (GB range) unlike LocalStorage (5 MB)
+Dexie.js
+Lightweight promise-based wrapper for IndexedDB used by WhatsApp Web, Microsoft To Do, GitHub Desktop
+PWA
+Progressive Web App — web app with offline capability, installability, and native-like features via Service Worker
+Capacitor
+Ionic's native runtime that wraps a PWA in a native Android/iOS container; successor to Cordova
+SheetJS (xlsx)
+Client-side library for reading/writing Excel files (.xlsx, .csv) without a server
+CSP
+Content Security Policy — HTTP response header controlling which resources a page can load
+FAB
+Floating Action Button — primary action button that floats over content; Material Design pattern
+WCAG 2.1 AA
+Web Content Accessibility Guidelines level AA — accessibility standard for digital products
