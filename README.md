@@ -1,73 +1,99 @@
-# React + TypeScript + Vite
+<div align="center">
+  <img src="public/logo.png" alt="VaultSpend Logo" width="120" />
+  
+  # VaultSpend 🪙
+  
+  **Your 100% Private, Local-First Expense Tracker.**
+  
+  <p>
+    <img src="https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB" alt="React" />
+    <img src="https://img.shields.io/badge/Ionic-3880FF?style=for-the-badge&logo=ionic&logoColor=white" alt="Ionic" />
+    <img src="https://img.shields.io/badge/Capacitor-119EFF?style=for-the-badge&logo=capacitor&logoColor=white" alt="Capacitor" />
+    <img src="https://img.shields.io/badge/Dexie.js-FF5C72?style=for-the-badge" alt="Dexie" />
+    <img src="https://img.shields.io/badge/Zustand-443E38?style=for-the-badge" alt="Zustand" />
+  </p>
+</div>
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+---
 
-Currently, two official plugins are available:
+## 🔒 Privacy First. Always.
+VaultSpend was built with a single core philosophy: **Your financial data is yours alone.**
+There are no servers, no cloud syncs, and no telemetry. Every single transaction, budget, and note you record is securely encrypted and stored entirely on your local device using IndexedDB (via Dexie.js). 
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+---
 
-## React Compiler
+## ✨ Key Features
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+- **📱 Beautiful Mobile UI:** Carefully crafted using Ionic and CSS variables for a fluid, native-feeling experience that seamlessly adapts to **Dark Mode** and **Light Mode**.
+- **🛡️ Secure PIN Lock:** Protect your data with a mandatory 6-digit PIN lock. Features persistent rate-limiting to prevent brute-force attacks.
+- **📊 Smart Analytics:** Visualize your spending patterns with dynamic, interactive charts (powered by Chart.js) that respect your system theme.
+- **💸 Full Financial Tracking:** Manage Daily Expenses, Income Streams, Fixed Bills (Subscriptions), and Monthly Budgets in one place.
+- **🔄 Local Backup & Restore:** Export your data as an encrypted `.json` file to safely move it between devices, or download reports as `.xlsx` files.
+- **🔔 Notifications:** Get gentle local alerts for upcoming bills or when you are nearing your budget limits (via Capacitor Local Notifications).
 
-## Expanding the ESLint configuration
+---
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+## 🛠️ Tech Stack
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+VaultSpend is built on a modern hybrid web stack, optimized for maximum performance on mobile devices.
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+| Technology | Purpose |
+| :--- | :--- |
+| **React 19** | Core UI library |
+| **Ionic React** | Native mobile components & routing |
+| **Capacitor** | Native device bridging (Android/iOS builds) |
+| **Zustand** | Lightning-fast, boilerplate-free state management |
+| **Dexie.js** | Robust IndexedDB wrapper for local-first storage |
+| **Chart.js** | Beautiful, responsive financial data visualization |
+| **Lucide React**| Crisp, customizable SVG iconography |
+| **DOMPurify** | Ironclad XSS protection and data sanitization |
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+---
+
+## 🚀 Getting Started (Development)
+
+To run the project locally on your machine for development:
+
+### 1. Install Dependencies
+```bash
+npm install
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
-
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+### 2. Run the Development Server
+```bash
+npm run dev
 ```
+Open [http://localhost:5173](http://localhost:5173) in your browser.
+
+---
+
+## 📱 Building for Android
+
+Because VaultSpend utilizes Capacitor, bridging the web app to a native Android APK is incredibly simple.
+
+### Quick Sync
+Compile the web assets and sync them to your Android project:
+```bash
+npm run android:sync
+```
+
+### Build & Open Android Studio
+Build the web assets, sync with Capacitor, and instantly open Android Studio to run on an emulator or physical device:
+```bash
+npm run android:open
+```
+
+---
+
+## 🛡️ Security & Audits
+VaultSpend has been strictly audited to ensure maximum local security:
+- **XSS Protection:** All user inputs (names, notes, etc.) are stripped of malicious code using `DOMPurify` before being saved to the database.
+- **Payload Limits:** Strict `maxLength` constraints exist on all text fields to prevent application crashing via bloated database entries.
+- **Rate Limiting:** The PIN lock system features persistent lockout logic to prevent brute-force intrusion, even if the app is force-closed and restarted.
+- **Cross-Theme UI Audit:** Contrast ratios and UI elements have been specifically validated to ensure accessibility and aesthetic cohesion across both Light and Dark themes.
+
+---
+
+<div align="center">
+  <p>Built with ❤️ and privacy in mind.</p>
+</div>
