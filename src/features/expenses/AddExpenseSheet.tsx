@@ -71,8 +71,18 @@ const AddExpenseSheet: React.FC<AddExpenseSheetProps> = ({ isOpen, onClose, prof
         quality: 60,
         resultType: CameraResultType.Base64,
         source: CameraSource.Prompt,
+        width: 1200, // Downscale large images automatically
       });
-      if (photo.base64String) setReceiptBase64(`data:image/jpeg;base64,${photo.base64String}`);
+      
+      if (photo.base64String) {
+        // Calculate approximate size of base64 string in bytes
+        const sizeInBytes = Math.round((photo.base64String.length * 3) / 4);
+        if (sizeInBytes > 5 * 1024 * 1024) { // 5MB limit
+          setError('Receipt image is too large. Please select an image under 5MB.');
+          return;
+        }
+        setReceiptBase64(`data:image/${photo.format || 'jpeg'};base64,${photo.base64String}`);
+      }
     } catch {
       // user cancelled or permission denied
     } finally {

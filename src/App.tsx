@@ -116,7 +116,7 @@ const App: React.FC = () => {
       </div>
 
       {isLocked && (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 10000, background: 'var(--vs-bg)' }}>
+        <div style={{ position: 'fixed', inset: 0, zIndex: 999999, background: 'var(--vs-bg)' }}>
           <LockScreen />
         </div>
       )}
