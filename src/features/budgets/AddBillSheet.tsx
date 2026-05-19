@@ -120,6 +120,7 @@ const AddBillSheet: React.FC<AddBillSheetProps> = ({ isOpen, onClose, profileId,
                 <input
                     type="text" inputMode="decimal" placeholder="0.00"
                     value={amount}
+                    maxLength={15}
                     onKeyDown={(e) => { if (['-', '+', 'e', 'E', ','].includes(e.key)) e.preventDefault(); }}
                     onChange={(e) => {
                       const filtered = e.target.value.replace(/[^0-9.]/g, '');

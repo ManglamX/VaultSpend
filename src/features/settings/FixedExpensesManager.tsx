@@ -117,7 +117,13 @@ const FixedExpensesManager: React.FC<FixedExpensesManagerProps> = ({ isOpen, onC
             ].map(({ label, value, onChange, placeholder, type }) => (
               <div key={label} style={{ background: 'var(--vs-surface)', borderRadius: 'var(--radius-xl)', padding: '1rem', border: '1px solid var(--vs-border)' }}>
                 <p style={{ color: 'var(--vs-muted)', fontSize: 'var(--text-micro)', fontWeight: 700, textTransform: 'uppercase', marginBottom: '0.5rem' }}>{label}</p>
-                <input type={type} placeholder={placeholder} value={value} onChange={(e) => onChange(e.target.value)}
+                <input type={type} placeholder={placeholder} value={value} 
+                  onChange={(e) => {
+                    if (type === 'number' && e.target.value.length > 15) return;
+                    if (type === 'text' && e.target.value.length > 100) return;
+                    onChange(e.target.value);
+                  }}
+                  maxLength={type === 'text' ? 100 : undefined}
                   style={{ background: 'transparent', border: 'none', outline: 'none', color: 'var(--vs-text)', fontSize: '1.1rem', width: '100%', fontFamily: 'inherit' }} />
               </div>
             ))}
