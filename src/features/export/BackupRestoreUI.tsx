@@ -24,7 +24,6 @@ const BackupRestoreUI: React.FC<{ onClose: () => void }> = ({ onClose }) => {
 
   // PIN gate state
   const [pinGateOpen, setPinGateOpen]           = useState(false);
-  const [pinVerified, setPinVerified]           = useState(false);
   const [pendingAction, setPendingAction]       = useState<'backup' | 'restore' | null>(null);
 
   // ── PIN gate helpers ──────────────────────────────────────────────────────
@@ -35,7 +34,6 @@ const BackupRestoreUI: React.FC<{ onClose: () => void }> = ({ onClose }) => {
 
   const handlePinVerified = () => {
     setPinGateOpen(false);
-    setPinVerified(true);
     // Automatically execute the action the user intended
     if (pendingAction === 'backup') execBackup();
     if (pendingAction === 'restore') execRestore();
