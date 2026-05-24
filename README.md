@@ -16,6 +16,21 @@
 
 ---
 
+## 📸 App Preview
+
+<p align="center">
+  <img src="lockscreen.jpeg" width="30%" alt="Lock Screen" />
+  <img src="dashboard.jpeg" width="30%" alt="Dashboard" />
+  <img src="stats.jpeg" width="30%" alt="Analytics" />
+</p>
+<p align="center">
+  <img src="budget.jpeg" width="30%" alt="Budgets" />
+  <img src="logs.jpeg" width="30%" alt="Logs" />
+  <img src="settings.jpeg" width="30%" alt="Settings" />
+</p>
+
+---
+
 ## 🔒 Privacy First. Always.
 VaultSpend was built with a single core philosophy: **Your financial data is yours alone.**
 There are no servers, no cloud syncs, and no telemetry. Every single transaction, budget, and note you record is securely encrypted and stored entirely on your local device using IndexedDB (via Dexie.js). 
