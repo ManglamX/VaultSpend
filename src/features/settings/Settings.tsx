@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
 import {
   IonContent, IonHeader, IonPage, IonToolbar, IonList, IonItem, IonLabel,
-  useIonAlert, useIonToast, IonSpinner, IonToggle, IonActionSheet, IonAlert
+  IonModal, useIonAlert, useIonToast, IonSpinner, IonToggle, IonActionSheet, IonAlert
 } from '@ionic/react';
 import {
   Lock, Download, Info, ShieldCheck, Key, Trash2, Repeat, List, Coins,
-  FileSpreadsheet, Check, WalletCards, TrendingUp, Users, User
+  FileSpreadsheet, Check, WalletCards, TrendingUp, Users, User, ChevronLeft, ChevronRight, X, AlertTriangle
 } from 'lucide-react';
 import { useAuthStore } from '../../store/authStore';
 import { useExpenseStore } from '../../store/expenseStore';
@@ -17,13 +17,14 @@ import { db } from '../../db/schema';
 import { Share } from '@capacitor/share';
 import { Filesystem, Directory } from '@capacitor/filesystem';
 import { Capacitor } from '@capacitor/core';
-import { format } from 'date-fns';
+import { format, subMonths, addMonths } from 'date-fns';
 import { exportToXLSX } from '../export/xlsxExport';
 import BackupRestoreUI from '../export/BackupRestoreUI';
 import { useProfileStore } from '../../store/profileStore';
 import CategoryManager from './CategoryManager';
 import FixedExpensesManager from './FixedExpensesManager';
 import IncomeSourceManager from './IncomeSourceManager';
+import PinGateModal from '../../components/PinGateModal';
 function SettingItem({ icon: IconComponent, iconColor, title, subtitle, onClick, badge, toggle, danger }: {
   icon: any; iconColor: string; title: string; subtitle?: string;
   onClick?: () => void; badge?: React.ReactNode; toggle?: React.ReactNode; danger?: boolean;
@@ -122,6 +123,17 @@ const Settings: React.FC = () => {
   const [xlsxBusy, setXlsxBusy] = useState(false);
   const [showProfileSwitcher, setShowProfileSwitcher] = useState(false);
   const [showNewProfile, setShowNewProfile] = useState(false);
+  // Excel PIN gate + picker
+  const [showXlsxPinGate, setShowXlsxPinGate] = useState(false);
+  const [showXlsxPicker, setShowXlsxPicker]   = useState(false);
+  const [xlsxPickerDate, setXlsxPickerDate]   = useState(new Date());
+  // Wipe PIN gate + confirm sheet
+  const [showWipePinGate, setShowWipePinGate] = useState(false);
+  const [showWipeConfirm, setShowWipeConfirm] = useState(false);
+  const [wipeText, setWipeText]               = useState('');
+  // Lock confirmation & CSV picker sheets
+  const [showLockConfirm, setShowLockConfirm] = useState(false);
+  const [showCsvPicker, setShowCsvPicker]     = useState(false);
   const { activeProfileId, profiles, setActiveProfileId, setProfiles } = useProfileStore();
 
   const doExport = async (data: typeof expenses, filename: string) => {
@@ -160,76 +172,67 @@ const Settings: React.FC = () => {
     doExport(allData, `vaultspend_all_time_${new Date().toISOString().slice(0, 10)}.csv`);
   };
 
-  const handleExportXLSX = async (scope: 'month' | 'year' | 'all') => {
+  const handleExportXLSX = async (scope: 'month' | 'year' | 'all', customDate?: Date) => {
     setXlsxBusy(true);
+    const d = customDate ?? viewDate;
     try {
       if (scope === 'month') {
-        const start = new Date(viewDate.getFullYear(), viewDate.getMonth(), 1).getTime();
-        const end   = new Date(viewDate.getFullYear(), viewDate.getMonth() + 1, 0, 23, 59, 59, 999).getTime();
-        await exportToXLSX(activeProfileId || 1, { from: start, to: end }, `vaultspend_month_${format(viewDate, 'MMM_yyyy')}.xlsx`);
+        const start = new Date(d.getFullYear(), d.getMonth(), 1).getTime();
+        const end   = new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59, 999).getTime();
+        await exportToXLSX(activeProfileId || 1, { from: start, to: end }, `vaultspend_${format(d, 'MMM_yyyy')}.xlsx`);
       } else if (scope === 'year') {
-        const start = new Date(viewDate.getFullYear(), 0, 1).getTime();
-        const end   = new Date(viewDate.getFullYear(), 11, 31, 23, 59, 59, 999).getTime();
-        await exportToXLSX(activeProfileId || 1, { from: start, to: end }, `vaultspend_year_${viewDate.getFullYear()}.xlsx`);
+        const start = new Date(d.getFullYear(), 0, 1).getTime();
+        const end   = new Date(d.getFullYear(), 11, 31, 23, 59, 59, 999).getTime();
+        await exportToXLSX(activeProfileId || 1, { from: start, to: end }, `vaultspend_year_${d.getFullYear()}.xlsx`);
       } else {
         await exportToXLSX(activeProfileId || 1, undefined, `vaultspend_all_time_${new Date().toISOString().slice(0, 10)}.xlsx`);
       }
       presentToast({ message: 'Excel file downloaded!', duration: 2500, color: 'success', position: 'bottom' });
     } catch {
       presentToast({ message: 'Excel export failed', duration: 2000, color: 'danger' });
-    } finally { setXlsxBusy(false); }
+    } finally { setXlsxBusy(false); setShowXlsxPicker(false); }
   };
 
-  const confirmExportXLSX = () => presentAlert({
-    header: 'Export Excel (.xlsx)',
-    message: '5-sheet Excel file: Transactions, Income, Bills, Monthly Summary, Net Savings.',
-    buttons: [
-      { text: 'Cancel', role: 'cancel' },
-      { text: `Month (${format(viewDate, 'MMM')})`, handler: () => handleExportXLSX('month') },
-      { text: `Year (${viewDate.getFullYear()})`,  handler: () => handleExportXLSX('year') },
-      { text: 'All Time History',  handler: () => handleExportXLSX('all') },
-    ],
-  });
+  // Step 1: open PIN gate
+  const confirmExportXLSX = () => setShowXlsxPinGate(true);
 
-  const confirmExport = () => presentAlert({
-    header: 'Export Expenses', message: 'Decrypted CSV downloads are readable by anyone.',
-    buttons: [
-      { text: 'Cancel', role: 'cancel' },
-      { text: `Current Month (${format(viewDate, 'MMM')})`, handler: handleExportMonth },
-      { text: 'All Time History', handler: handleExportAll }
-    ],
-  });
+  // Step 2: after PIN verified, show the picker
+  const handleXlsxPinVerified = () => {
+    setShowXlsxPinGate(false);
+    setXlsxPickerDate(viewDate);
+    setShowXlsxPicker(true);
+  };
 
-  const confirmLock = () => presentAlert({
-    header: 'Lock VaultSpend', message: 'Session key will be cleared. PIN required to re-enter.',
-    buttons: [{ text: 'Cancel', role: 'cancel' }, { text: 'Lock', handler: () => setLocked(true) }],
-  });
+  const confirmExport = () => setShowCsvPicker(true);
 
-  const confirmWipe = () => presentAlert({
-    header: '⚠️ Wipe ALL Data',
-    message: 'This permanently deletes EVERYTHING. This CANNOT be undone. Type "CLEAR" to confirm.',
-    inputs: [{ name: 'confirmText', type: 'text', placeholder: 'Type CLEAR' }],
-    buttons: [
-      { text: 'Cancel', role: 'cancel' },
-      {
-        text: 'DELETE EVERYTHING',
-        role: 'destructive',
-        handler: async (data) => {
-          if (data.confirmText !== 'CLEAR') {
-            presentToast({ message: 'Wipe cancelled: Confirmation text mismatch', duration: 2000, color: 'warning' });
-            return;
-          }
-          try {
-            await db.delete();
-            presentToast({ message: 'All data wiped', duration: 2000, color: 'warning' });
-            setTimeout(() => window.location.reload(), 1500);
-          } catch {
-            presentToast({ message: 'Wipe failed', duration: 2000, color: 'danger' });
-          }
-        },
-      },
-    ],
-  });
+  const confirmLock = () => setShowLockConfirm(true);
+
+  // Wipe: Step 1 — open PIN gate
+  const confirmWipe = () => {
+    setWipeText('');
+    setShowWipePinGate(true);
+  };
+  // Wipe: Step 2 — PIN verified, show typed confirmation
+  const handleWipePinVerified = () => {
+    setShowWipePinGate(false);
+    setWipeText('');
+    setShowWipeConfirm(true);
+  };
+  // Wipe: Step 3 — execute
+  const handleWipeExecute = async () => {
+    if (wipeText !== 'WIPE') {
+      presentToast({ message: 'Type WIPE exactly to confirm', duration: 2000, color: 'warning' });
+      return;
+    }
+    try {
+      setShowWipeConfirm(false);
+      await db.delete();
+      presentToast({ message: 'All data wiped', duration: 2000, color: 'warning' });
+      setTimeout(() => window.location.reload(), 1500);
+    } catch {
+      presentToast({ message: 'Wipe failed', duration: 2000, color: 'danger' });
+    }
+  };
 
   const SectionLabel = ({ label }: { label: string }) => (
     <p style={{ color: 'var(--vs-muted)', fontWeight: 700, fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.1em', margin: '1.25rem 0 0.625rem 0.5rem' }}>{label}</p>
@@ -363,6 +366,214 @@ const Settings: React.FC = () => {
         <CategoryManager isOpen={showCategories} onClose={() => setShowCategories(false)} profileId={activeProfileId || 1} />
         <IncomeSourceManager isOpen={showIncomeSources} onClose={() => setShowIncomeSources(false)} profileId={activeProfileId || 1} />
         <FixedExpensesManager isOpen={showFixed} onClose={() => setShowFixed(false)} profileId={activeProfileId || 1} />
+
+        {/* Excel PIN gate */}
+        <PinGateModal
+          isOpen={showXlsxPinGate}
+          title="Verify Your Identity"
+          subtitle="Enter your app PIN to export financial data"
+          onVerified={handleXlsxPinVerified}
+          onCancel={() => setShowXlsxPinGate(false)}
+        />
+
+        {/* Excel period picker */}
+        <IonModal isOpen={showXlsxPicker} onDidDismiss={() => setShowXlsxPicker(false)} initialBreakpoint={0.65} breakpoints={[0, 0.65]} style={{ '--backdrop-opacity': 0.6 }}>
+          <IonContent className="force-dark">
+            <div style={{ padding: '1.5rem 1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <div style={{ width: 40, height: 4, background: 'var(--stone-700)', borderRadius: 2, margin: '0 auto 0.5rem' }} />
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <h2 style={{ color: 'var(--vs-text)', margin: 0, fontWeight: 850, fontSize: '1.35rem', letterSpacing: '-0.02em', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <FileSpreadsheet size={22} color="#10b981" /> Export Excel
+                </h2>
+                <button onClick={() => setShowXlsxPicker(false)} style={{ background: 'var(--vs-surface)', border: 'none', borderRadius: '50%', width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', borderStyle: 'solid', borderWidth: 1, borderColor: 'var(--vs-border)' }}>
+                  <X size={18} color="var(--vs-muted)" strokeWidth={2} />
+                </button>
+              </div>
+
+              <div style={{ background: 'rgba(16, 185, 129, 0.08)', border: '1px solid rgba(16, 185, 129, 0.25)', borderRadius: 'var(--radius-xl)', padding: '0.85rem 1rem' }}>
+                <p style={{ color: '#10b981', fontSize: 'var(--text-micro)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', margin: '0 0 0.25rem' }}>Features Included</p>
+                <p style={{ color: 'var(--vs-text)', fontSize: '0.82rem', margin: 0, lineHeight: 1.5, opacity: 0.8 }}>
+                  Generates an Excel workbook containing: <strong>Transactions, Income, Recurring Bills, Monthly Category Totals, Net Savings, & Percentage growth.</strong>
+                </p>
+              </div>
+
+              {/* Month picker */}
+              <div style={{ background: 'var(--vs-surface)', borderRadius: 'var(--radius-xl)', padding: '1.1rem', border: '1px solid var(--vs-border)', boxShadow: 'inset 0 1px 4px rgba(0,0,0,0.1)' }}>
+                <p style={{ color: 'var(--vs-muted)', fontSize: 'var(--text-micro)', fontWeight: 700, textTransform: 'uppercase', margin: '0 0 0.75rem', letterSpacing: '0.05em' }}>Target Period</p>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <button onClick={() => setXlsxPickerDate(d => subMonths(d, 1))} style={{ background: 'var(--vs-elevated)', border: '1px solid var(--vs-border)', borderRadius: 'var(--radius-xl)', width: 44, height: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+                    <ChevronLeft size={20} color="var(--vs-text)" />
+                  </button>
+                  <span style={{ color: 'var(--vs-text)', fontWeight: 800, fontSize: '1.15rem' }}>{format(xlsxPickerDate, 'MMMM yyyy')}</span>
+                  <button onClick={() => setXlsxPickerDate(d => addMonths(d, 1))} disabled={addMonths(xlsxPickerDate, 1) > new Date()} style={{ background: 'var(--vs-elevated)', border: '1px solid var(--vs-border)', borderRadius: 'var(--radius-xl)', width: 44, height: 44, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', opacity: addMonths(xlsxPickerDate, 1) > new Date() ? 0.3 : 1 }}>
+                    <ChevronRight size={20} color="var(--vs-text)" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Export buttons */}
+              <button onClick={() => handleExportXLSX('month', xlsxPickerDate)} disabled={xlsxBusy} style={{ width: '100%', padding: '1.1rem', borderRadius: 'var(--radius-xl)', border: 'none', background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)', color: '#fff', fontWeight: 800, fontSize: 'var(--text-body)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', boxShadow: '0 4px 12px rgba(16, 185, 129, 0.25)', opacity: xlsxBusy ? 0.6 : 1 }}>
+                {xlsxBusy ? <IonSpinner name="crescent" style={{ width: 20, height: 20, color: '#fff' }} /> : <><FileSpreadsheet size={18} /> Download Excel for {format(xlsxPickerDate, 'MMM yyyy')}</>}
+              </button>
+
+              <div style={{ display: 'flex', gap: '0.75rem' }}>
+                <button onClick={() => handleExportXLSX('year', xlsxPickerDate)} disabled={xlsxBusy} style={{ flex: 1, padding: '0.95rem', borderRadius: 'var(--radius-xl)', border: '1px solid var(--vs-border)', background: 'var(--vs-surface)', color: 'var(--vs-text)', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem', transition: 'background 0.1s' }}>
+                  <FileSpreadsheet size={16} color="var(--primary-600)" /> Entire Year {xlsxPickerDate.getFullYear()}
+                </button>
+                <button onClick={() => handleExportXLSX('all')} disabled={xlsxBusy} style={{ flex: 1, padding: '0.95rem', borderRadius: 'var(--radius-xl)', border: '1px solid var(--vs-border)', background: 'var(--vs-surface)', color: 'var(--vs-text)', fontWeight: 700, fontSize: '0.85rem', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem', transition: 'background 0.1s' }}>
+                  <FileSpreadsheet size={16} color="var(--primary-600)" /> Full History
+                </button>
+              </div>
+            </div>
+          </IonContent>
+        </IonModal>
+
+        {/* Wipe PIN gate */}
+        <PinGateModal
+          isOpen={showWipePinGate}
+          title="Verify Your Identity"
+          subtitle="Enter your PIN to proceed with data wipe"
+          onVerified={handleWipePinVerified}
+          onCancel={() => setShowWipePinGate(false)}
+        />
+
+        {/* Wipe final confirmation sheet */}
+        <IonModal isOpen={showWipeConfirm} onDidDismiss={() => setShowWipeConfirm(false)} initialBreakpoint={0.65} breakpoints={[0, 0.65]} style={{ '--backdrop-opacity': 0.8 }}>
+          <IonContent className="force-dark">
+            <div style={{ padding: '1.5rem 1.25rem', display: 'flex', flexDirection: 'column', gap: '1.1rem' }}>
+              <div style={{ width: 40, height: 4, background: 'var(--stone-700)', borderRadius: 2, margin: '0 auto 0.5rem' }} />
+
+              {/* Danger icon + title */}
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.75rem', padding: '0.25rem 0' }}>
+                <div style={{ 
+                  width: 60, height: 60, borderRadius: '50%', 
+                  background: 'rgba(239, 68, 68, 0.15)', 
+                  border: '1.5px solid var(--danger-500)', 
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  boxShadow: '0 0 15px rgba(239, 68, 68, 0.25)'
+                }}>
+                  <Trash2 size={26} color="var(--danger-500)" strokeWidth={1.5} />
+                </div>
+                <h2 style={{ color: 'var(--vs-text)', fontWeight: 850, fontSize: '1.35rem', margin: 0, letterSpacing: '-0.02em' }}>Wipe All Data</h2>
+                <p style={{ color: 'var(--vs-muted)', fontSize: '0.85rem', margin: 0, textAlign: 'center', lineHeight: 1.6 }}>
+                  This will <strong style={{ color: 'var(--danger-500)' }}>permanently delete everything</strong> — all profiles, expenses, incomes, budgets, and keys.<br />
+                  This operation is <strong style={{ color: 'var(--danger-500)' }}>completely irreversible</strong>.
+                </p>
+              </div>
+
+              {/* Danger banner */}
+              <div style={{ background: 'rgba(239, 68, 68, 0.08)', border: '1px solid rgba(239, 68, 68, 0.2)', borderRadius: 'var(--radius-xl)', padding: '0.875rem 1rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <AlertTriangle size={18} color="var(--danger-500)" style={{ flexShrink: 0 }} />
+                <p style={{ color: 'var(--danger-400)', fontSize: '0.82rem', margin: 0, lineHeight: 1.5, fontWeight: 600 }}>
+                  To proceed, type <code style={{ background: 'var(--danger-900)', color: '#fff', padding: '2px 6px', borderRadius: 4, fontWeight: 800 }}>WIPE</code> in the field below.
+                </p>
+              </div>
+
+              {/* WIPE text input */}
+              <input
+                value={wipeText}
+                onChange={e => setWipeText(e.target.value)}
+                placeholder="Type WIPE"
+                autoComplete="off"
+                style={{
+                  background: 'var(--vs-surface)', border: `1.5px solid ${wipeText === 'WIPE' ? 'var(--danger-500)' : 'var(--vs-border)'}`,
+                  borderRadius: 'var(--radius-xl)', padding: '1.1rem', color: wipeText === 'WIPE' ? 'var(--danger-500)' : 'var(--vs-text)',
+                  fontSize: '1.2rem', fontWeight: 800, outline: 'none', width: '100%', boxSizing: 'border-box', textAlign: 'center', letterSpacing: '0.2em',
+                  transition: 'all 0.15s ease',
+                  boxShadow: wipeText === 'WIPE' ? '0 0 10px rgba(239, 68, 68, 0.15)' : 'none'
+                }}
+              />
+
+              {/* Action buttons */}
+              <button
+                onClick={handleWipeExecute}
+                disabled={wipeText !== 'WIPE'}
+                style={{
+                  width: '100%', padding: '1.1rem', borderRadius: 'var(--radius-xl)', border: 'none',
+                  background: wipeText === 'WIPE' ? 'var(--danger-600)' : 'var(--vs-elevated)',
+                  color: wipeText === 'WIPE' ? '#fff' : 'var(--stone-500)',
+                  fontWeight: 800, fontSize: 'var(--text-body)', cursor: wipeText === 'WIPE' ? 'pointer' : 'default',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem',
+                  opacity: wipeText === 'WIPE' ? 1 : 0.5, transition: 'all 0.2s',
+                  boxShadow: wipeText === 'WIPE' ? '0 4px 12px rgba(239, 68, 68, 0.25)' : 'none'
+                }}
+              >
+                <Trash2 size={18} /> Confirm Destruction
+              </button>
+              <button onClick={() => setShowWipeConfirm(false)} style={{ background: 'transparent', border: 'none', color: 'var(--vs-muted)', fontSize: 'var(--text-body)', cursor: 'pointer', padding: '0.5rem', textAlign: 'center', fontWeight: 600 }}>
+                Cancel — Keep All Data
+              </button>
+            </div>
+          </IonContent>
+        </IonModal>
+
+        {/* Lock app modal */}
+        <IonModal isOpen={showLockConfirm} onDidDismiss={() => setShowLockConfirm(false)} initialBreakpoint={0.4} breakpoints={[0, 0.4]} style={{ '--backdrop-opacity': 0.6 }}>
+          <IonContent className="force-dark">
+            <div style={{ padding: '1.5rem 1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem', height: '100%' }}>
+              <div style={{ width: 40, height: 4, background: 'var(--stone-700)', borderRadius: 2, margin: '0 auto 0.5rem' }} />
+              
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.75rem', padding: '0.5rem 0', textAlign: 'center' }}>
+                <div style={{ 
+                  width: 56, height: 56, borderRadius: '50%', 
+                  background: 'rgba(239, 104, 104, 0.12)', 
+                  border: '1.5px solid var(--accent-500)', 
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  boxShadow: '0 0 15px rgba(239, 104, 104, 0.15)'
+                }}>
+                  <Lock size={24} color="var(--accent-500)" strokeWidth={1.5} />
+                </div>
+                <h2 style={{ color: 'var(--vs-text)', fontWeight: 850, fontSize: '1.3rem', margin: 0, letterSpacing: '-0.02em' }}>Lock VaultSpend?</h2>
+                <p style={{ color: 'var(--vs-muted)', fontSize: 'var(--text-caption)', margin: 0, padding: '0 1rem', lineHeight: 1.5 }}>
+                  This will securely clear the encryption keys from local memory. You will need your PIN to re-unlock the app.
+                </p>
+              </div>
+
+              <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.5rem' }}>
+                <button onClick={() => setShowLockConfirm(false)} style={{ flex: 1, padding: '1rem', borderRadius: 'var(--radius-xl)', border: '1px solid var(--vs-border)', background: 'var(--vs-surface)', color: 'var(--vs-text)', fontWeight: 700, fontSize: 'var(--text-body)', cursor: 'pointer' }}>
+                  Cancel
+                </button>
+                <button onClick={() => { setShowLockConfirm(false); setLocked(true); }} style={{ flex: 1, padding: '1rem', borderRadius: 'var(--radius-xl)', border: 'none', background: 'var(--accent-500)', color: '#fff', fontWeight: 800, fontSize: 'var(--text-body)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', boxShadow: '0 4px 12px rgba(239, 104, 104, 0.2)' }}>
+                  <Lock size={16} /> Lock Now
+                </button>
+              </div>
+            </div>
+          </IonContent>
+        </IonModal>
+
+        {/* CSV export modal */}
+        <IonModal isOpen={showCsvPicker} onDidDismiss={() => setShowCsvPicker(false)} initialBreakpoint={0.5} breakpoints={[0, 0.5]} style={{ '--backdrop-opacity': 0.6 }}>
+          <IonContent className="force-dark">
+            <div style={{ padding: '1.5rem 1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <div style={{ width: 40, height: 4, background: 'var(--stone-700)', borderRadius: 2, margin: '0 auto 0.5rem' }} />
+              
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <h2 style={{ color: 'var(--vs-text)', margin: 0, fontWeight: 850, fontSize: '1.35rem', letterSpacing: '-0.02em', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <Download size={22} color="var(--primary-500)" /> Export CSV
+                </h2>
+                <button onClick={() => setShowCsvPicker(false)} style={{ background: 'var(--vs-surface)', border: 'none', borderRadius: '50%', width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', borderStyle: 'solid', borderWidth: 1, borderColor: 'var(--vs-border)' }}>
+                  <X size={18} color="var(--vs-muted)" strokeWidth={2} />
+                </button>
+              </div>
+
+              <div style={{ background: 'rgba(245, 158, 11, 0.08)', border: '1px solid rgba(245, 158, 11, 0.25)', borderRadius: 'var(--radius-xl)', padding: '0.85rem 1rem' }}>
+                <p style={{ color: 'var(--accent-500)', fontSize: 'var(--text-micro)', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', margin: '0 0 0.25rem' }}>Security Warning</p>
+                <p style={{ color: 'var(--vs-text)', fontSize: '0.82rem', margin: 0, lineHeight: 1.5, opacity: 0.8 }}>
+                  Decrypted CSV files do <strong>not</strong> contain password protection. Anyone who gets hold of this file can read your full financial transactions.
+                </p>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginTop: '0.5rem' }}>
+                <button onClick={() => { setShowCsvPicker(false); handleExportMonth(); }} style={{ width: '100%', padding: '1.1rem', borderRadius: 'var(--radius-xl)', border: 'none', background: 'var(--primary-600)', color: '#fff', fontWeight: 800, fontSize: 'var(--text-body)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
+                  <Download size={18} /> Current Month ({format(viewDate, 'MMM yyyy')})
+                </button>
+                <button onClick={() => { setShowCsvPicker(false); handleExportAll(); }} style={{ width: '100%', padding: '1.1rem', borderRadius: 'var(--radius-xl)', border: '1px solid var(--vs-border)', background: 'var(--vs-surface)', color: 'var(--vs-text)', fontWeight: 700, fontSize: 'var(--text-body)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
+                  <Download size={18} color="var(--primary-500)" /> All Time History (CSV)
+                </button>
+              </div>
+            </div>
+          </IonContent>
+        </IonModal>
 
         {/* Profile Switcher ActionSheet */}
         <IonActionSheet
