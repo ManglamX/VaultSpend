@@ -57,7 +57,7 @@ const BackupRestoreUI: React.FC<{ onClose: () => void }> = ({ onClose }) => {
       onClose();
     } catch (err: any) {
       presentToast({ message: err.message ?? 'Backup failed', duration: 3000, color: 'danger' });
-    } finally { setBusy(false); setPinVerified(false); }
+    } finally { setBusy(false); }
   };
 
   const execRestore = async () => {
@@ -83,7 +83,7 @@ const BackupRestoreUI: React.FC<{ onClose: () => void }> = ({ onClose }) => {
       setTimeout(onClose, 800);
     } catch (err: any) {
       presentToast({ message: err.message ?? 'Restore failed', duration: 3500, color: 'danger' });
-    } finally { setBusy(false); setPinVerified(false); }
+    } finally { setBusy(false); }
   };
 
   // ── Button click handlers (trigger PIN gate) ──────────────────────────────
