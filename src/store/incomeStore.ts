@@ -23,7 +23,9 @@ export const useIncomeStore = create<IncomeState>((set) => ({
     set({ isLoading: true });
     const attemptLoad = async (retry: boolean) => {
       try {
-        const income = await getIncomeForMonth(profileId, date.getFullYear(), date.getMonth());
+        const raw = await getIncomeForMonth(profileId, date.getFullYear(), date.getMonth());
+        // Backward compat: old records won't have paymentMode
+        const income = raw.map(i => ({ paymentMode: 'Cash' as const, ...i }));
         set({ income, isLoading: false });
       } catch (err: any) {
         if (err?.message === 'APP_LOCKED' && retry) {

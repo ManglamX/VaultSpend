@@ -30,6 +30,8 @@ export interface Income {
   note: string;
   date: number;
   profileId: number;
+  paymentMode: PaymentMode;
+  receiptBase64?: string;
 }
 
 export interface IncomeCategory {
